@@ -23,7 +23,7 @@ export default angular.module('ui.date', [])
           var opts = getOptions();
 
           function setVal(date) {
-            ngModelCtrl.$setViewValue(new Date(date));
+            ngModelCtrl.$setViewValue(initialParser(date));
             ngModelCtrl.$render();
           }
 
@@ -67,7 +67,16 @@ export default angular.module('ui.date', [])
 
             // Update the date picker when the model changes
             ngModelCtrl.$render = function() {
-              $element.datepicker('setDate', new Date(ngModelCtrl.$modelValue));
+              if (ngModelCtrl.$isEmpty(ngModelCtrl.$modelValue)) {
+                $element.datepicker('setDate', null);
+              }
+              else if (angular.isString(ngModelCtrl.$modelValue)) {
+                return setVal(Date.parse(ngModelCtrl.$modelValue));
+              }
+              else {
+                $element.datepicker('setDate', new Date(ngModelCtrl.$modelValue));
+              }
+
             };
 
 
@@ -92,57 +101,41 @@ export default angular.module('ui.date', [])
             });
           }
 
-          if (ngModelCtrl) {
-            setVal(Date.parse(ngModelCtrl.$modelValue));
+          if (ngModelCtrl && !ngModelCtrl.$isEmpty(ngModelCtrl.$modelValue)) {
+            setVal(angular.isString(ngModelCtrl.$modelValue) ? Date.parse(ngModelCtrl.$modelValue) : ngModelCtrl.$modelValue);
+          }
+
+          function initialParser(date) {
+            var dateFormat = $element.datepicker( "option", "dateFormat" );
+            return $.datepicker.formatDate(dateFormat, new Date(date));
           }
 
 
           function uiDateParser(valueToParse) {
-            var parsedDate = Date.parse(valueToParse);
-
-            if (isNaN(parsedDate) && valueToParse.length) {
-              try {
-                parsedDate = Date.parse(parseDateWithCurrentFormat(valueToParse));
-              }
-              catch (error) {}
-            }
-
-            return modelDateFormat && !isNaN(parsedDate) ?
-              $.datepicker.formatDate(modelDateFormat, new Date(parsedDate)) :
-              parsedDate;
+            return parseDateWithCurrentFormat(valueToParse);
           }
-
-
+          
+          
           function uiDateValidator(modelValue, viewValue) {
-            console.warn('uiDateValidator , modelValue, viewValue', modelValue, viewValue);
-            var isValidDate = !isNaN(Date.parse(viewValue)) || !isNaN(modelValue);
-
-            if (modelDateFormat && viewValue.length) {
-              try {
-                console.info('uiDateValidator try', viewValue);
-                isValidDate = !isNaN(Date.parse(parseDateWithCurrentFormat(viewValue)));
-              }
-              catch (error) {}
-            }
-
-            console.info('uiDateValidator isValidDate', isValidDate);
-
-            return   viewValue === null
-              || viewValue === ''
-              || isValidDate;
+            return modelValue !== null || viewValue === '';
           }
 
 
           function uiDateFormatter(modelToFormat) {
-            modelToFormat = new Date(modelToFormat);
-            modelToFormat = $.datepicker.formatDate(opts.dateFormat || UI_DATE_FORMAT, modelToFormat);
             return modelToFormat;
           }
 
 
           function parseDateWithCurrentFormat(valueToParse) {
-            var currentDateFormat = $element.datepicker( "option", "dateFormat" );
-            return $.datepicker.parseDate(currentDateFormat, valueToParse);
+            var dateFormat = $element.datepicker( "option", "dateFormat" );
+            var formattedDate = $.datepicker.formatDate(dateFormat, new Date());
+
+            if (formattedDate.length === valueToParse.length) {
+              return Date.parse($.datepicker.parseDate(dateFormat, valueToParse));
+            }
+            else {
+              return null;
+            }
           }
         };
 

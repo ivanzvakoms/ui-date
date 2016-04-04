@@ -1,15 +1,16 @@
+import $ from 'jquery';
 import angular from 'angular';
 import _datePicker from 'jquery-ui/datepicker'; // sets up jQuery with the datepicker plugin
 
 export default angular.module('ui.date', [])
   .service('uiDateHelper', function () {
-    //TODO(improve) separate storage by scope.id [resolve possible issues when use same modelName in different scopes]
+    //TODO(edge case) separate storage by scope.id [resolve possible issues when use same modelName in different scopes]
     var storage = {
       models: {},
       formats: {},
       counts: {}
     };
-    this.initUiDate = function(modelName, options, format) {
+    this.initUiDate = function (modelName, options, format) {
       if (!storage.models[modelName]) {
         storage.models[modelName] = options || true;
         storage.formats[modelName] = format;
@@ -17,18 +18,18 @@ export default angular.module('ui.date', [])
       }
       else if (storage.models[modelName] !== options) {
         throw Error('In ui-date options obj value isn\'t the same for all ' +
-          'ngModel\'s with variable: "' + modelName +'"');
+          'ngModel\'s with variable: "' + modelName + '"');
       }
       else if (storage.formats[modelName] !== format) {
         throw Error('In ui-date-format format value isn\'t the same for all ' +
-          'ngModel\'s with variable: "' + modelName +'"');
+          'ngModel\'s with variable: "' + modelName + '"');
       }
       else {
         storage.counts[modelName] += 1;
       }
     };
 
-    this.clearUiDate = function(modelName) {
+    this.clearUiDate = function (modelName) {
       if (storage.counts[modelName] > 1) {
         storage.counts[modelName] -= 1;
       }
@@ -43,14 +44,14 @@ export default angular.module('ui.date', [])
     return {
       require: '?ngModel',
       link: function link(scope, element, attrs, ngModelCtrl) {
-        var modelDateFormat = attrs.uiDateFormat;
+        var modelDateFormat = attrs.uiDateFormat; //format model
+        var dateFormat; //format view(default $.datepicker value or provided as option)
         var modelGetter = $parse(attrs.ngModel);
         var modelSetter = modelGetter.assign;
+        var showing = false;
+
 
         init();
-
-
-        //TODO Set watcher on ng-model scope value and re-init(convert time string to Date instance) when change
 
 
         //- IMPLEMENTATION
@@ -62,13 +63,10 @@ export default angular.module('ui.date', [])
           }
 
           uiDateHelper.initUiDate(attrs.ngModel, getOptions(), modelDateFormat);
+
           var value = modelGetter(scope);
 
           if (value && !(value instanceof Date)) {
-            console.warn('The ng-model for ui-date have to be a Date instance. ' +
-              'Currently the model is a: ' + typeof value);
-            console.warn('Trying convert to new Date("' + value + '")');
-
             parseNonDateValue(value)
           }
 
@@ -78,36 +76,53 @@ export default angular.module('ui.date', [])
             modelDateFormat = dateOptions;
           });
 
-
-          //setTimeout is used to call following code after $watch initial execute of
-          // setDatepicker and datepicker is applied for element
-          setTimeout(function () {
-            var dateFormat = element.datepicker('option', 'dateFormat');
-            var formattedDate = $.datepicker.formatDate(dateFormat, ngModelCtrl.$modelValue);
-
-            //initial onSelect emulate
-            element.datepicker('setDate', formattedDate);
-            scope.$applyAsync(function () {
-              ngModelCtrl.$setViewValue(formattedDate);
-            });
+          setDatepicker(getOptions(), true);
 
 
-            ngModelCtrl.$render = renderFn;
-            ngModelCtrl.$parsers.push(parser);
-            // ngModelCtrl.$validators.uiDateValidator = uiDateValidator;
-            ngModelCtrl.$formatters.push(formatter);
-          }, 0)
+          ngModelCtrl.$render = renderFn;
+          ngModelCtrl.$parsers.push(parser);
+          ngModelCtrl.$formatters.push(formatter);
+
+          //ngModel value change from outside detection
+          scope.$watch(attrs.ngModel, function (date) {
+            if (typeof date === 'boolean') {
+              throw Error('Boolean isn\'t a valid date type');
+            }
+
+            if (date && !validateDate(modelDateFormat || null, date)) {
+              if (!(date instanceof Date)) {
+                setDateToModel(parseNonDateValue(date));
+              }
+              else {
+                setDateToModel(date);
+              }
+            }
+          });
 
         }
 
 
+        function setDateToModel(date) {
+          var formattedDate = $.datepicker.formatDate(dateFormat, date);
+
+          //initial onSelect emulate
+          element.datepicker('setDate', formattedDate);
+          scope.$applyAsync(function () {
+            ngModelCtrl.$setViewValue(formattedDate);
+          });
+        }
+
+
         function parseNonDateValue(value) {
+          console.warn('The ng-model for ui-date have to be a Date instance. ' +
+            'Currently the model is a: ' + typeof value);
+          console.warn('Trying convert to new Date(' + value + ')');
           var dateInstance = new Date(value);
           if (dateInstance === 'Invalid Date') {
             throw Error('Unable to parse ng-model for ui-date');
           }
           else {
-            modelSetter(scope, dateInstance);
+            return modelSetter(scope, dateInstance);
           }
         }
 
@@ -117,7 +132,10 @@ export default angular.module('ui.date', [])
         }
 
 
-        function setDatepicker(opts) {
+        function setDatepicker(opts, oldOpts) {
+          if (opts === oldOpts) {
+            return;
+          }
           // we must copy options to prevent sharing options like 'onSelect' between scope.dateFormat which
           // might be used for different ng-model's
           var opts = opts ? angular.copy(opts) : {};
@@ -127,19 +145,22 @@ export default angular.module('ui.date', [])
           var _onSelect = opts.onSelect || angular.noop;
           opts.onSelect = function (dateText, picker) {
             scope.$apply(function () {
+              showing = true;
               ngModelCtrl.$setViewValue(dateText);
+              element.blur();
+              _onSelect(dateText, picker, element);
             });
-            element.blur();
-            _onSelect(dateText, picker, element);
           };
 
           var _beforeShow = opts.beforeShow || angular.noop;
           opts.beforeShow = function (input, picker) {
+            showing = true;
             _beforeShow(input, picker, element);
           };
 
           var _onClose = opts.onClose || angular.noop;
           opts.onClose = function (dateText, picker) {
+            showing = false;
             _onClose(dateText, picker, element);
           };
 
@@ -166,9 +187,20 @@ export default angular.module('ui.date', [])
             });
           }
 
+          dateFormat = element.datepicker('option', 'dateFormat');
+
           element.on('focus', function (focusEvent) {
             if (attrs.readonly) {
               focusEvent.stopImmediatePropagation();
+            }
+          });
+
+          element.off('blur.datepicker').on('blur.datepicker', function() {
+            if (!showing) {
+              scope.$apply(function() {
+                element.datepicker('setDate', element.datepicker('getDate'));
+                ngModelCtrl.$render();
+              });
             }
           });
 
@@ -177,7 +209,6 @@ export default angular.module('ui.date', [])
 
         function renderFn() {
           if (ngModelCtrl.$viewValue) {
-            var dateFormat = element.datepicker('option', 'dateFormat');
             var getDate = $.datepicker.parseDate(dateFormat, ngModelCtrl.$viewValue);
             element.datepicker('setDate', getDate);
           }
@@ -186,9 +217,8 @@ export default angular.module('ui.date', [])
           }
         }
 
-        
+
         function parser(viewValue) {
-          var dateFormat = element.datepicker('option', 'dateFormat');
           var validatedDate;
 
           if (ngModelCtrl.$isEmpty(viewValue)) {
@@ -201,8 +231,7 @@ export default angular.module('ui.date', [])
             return validatedDate ? $.datepicker.formatDate(modelDateFormat, new Date(validatedDate)) : validatedDate;
           }
           else {
-            validatedDate =  validateDate(dateFormat, viewValue);
-            return validatedDate ? viewValue : validatedDate;
+            return validateDate(dateFormat, viewValue);
           }
 
         }
@@ -211,7 +240,12 @@ export default angular.module('ui.date', [])
         function validateDate(format, date) {
           try {
             ngModelCtrl.$setValidity(attrs.ngModel + '_datePicker', true);
-            return $.datepicker.parseDate(format, date);
+            if (format === null && date instanceof Date) {
+              return date;
+            }
+            else {
+              return $.datepicker.parseDate(format, date);
+            }
           }
           catch (error) {
             // console.warn('error', error);
@@ -222,15 +256,14 @@ export default angular.module('ui.date', [])
 
 
         function formatter(modelValue) {
-          var dateFormat = element.datepicker('option', 'dateFormat');
           var validatedDate;
 
           if (typeof modelValue === 'undefined') { //some other directive with same model
             element.datepicker('setDate', null);
           }
 
-          if (ngModelCtrl.$isEmpty(modelValue)) {
-            return modelValue;
+          if (ngModelCtrl.$isEmpty(modelValue) || typeof modelValue === 'boolean') {
+            return '';//modelValue
           }
 
           //revert value from formatted by parser(modelDateFormat is used for $viewModel format) to datepicker opts view
@@ -239,12 +272,12 @@ export default angular.module('ui.date', [])
             return validatedDate ? $.datepicker.formatDate(dateFormat, new Date(validatedDate)) : validatedDate
           }
           else {
-            validatedDate = validateDate(dateFormat, modelValue);
-            return validatedDate ? modelValue : validatedDate;
+            validatedDate = validateDate(null, modelValue);
+            return validatedDate ? $.datepicker.formatDate(dateFormat, new Date(modelValue)) : validatedDate;
           }
 
         }
-        
+
       }
     }
   }]);

@@ -196,7 +196,7 @@ export default angular.module('ui.date', [])
           });
 
           element.off('blur.datepicker').on('blur.datepicker', function() {
-            if (!showing) {
+            if (!showing && validateDate(dateFormat, ngModelCtrl.$viewValue)) {
               scope.$apply(function() {
                 element.datepicker('setDate', element.datepicker('getDate'));
                 ngModelCtrl.$render();
@@ -227,6 +227,7 @@ export default angular.module('ui.date', [])
 
           if (modelDateFormat) {
             validatedDate = validateDate(dateFormat, viewValue);
+            console.log('validatedDate',validatedDate);
             //here we going to format our value with modelDateFormat
             return validatedDate ? $.datepicker.formatDate(modelDateFormat, new Date(validatedDate)) : validatedDate;
           }

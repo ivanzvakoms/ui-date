@@ -16,40 +16,28 @@
 
     <h2>ui-date (binding options)</h2>
     <fieldset>
-      <!--<label for="date">Select Date:</label>-->
-      <!--<input type="text" id="date" ui-date="dateOptions" ng-model="aDate">-->
+      <label for="date">Select Date:</label>
+      <input type="text" id="date" ui-date="dateOptions" ng-model="aDate">
 
-      <!--<div>{{ aDate }}</div>-->
-      <!--<div>-->
-        <!--Read only <input type="text" ui-date ng-model="aDate" readonly>-->
-      <!--</div>-->
-
-
-      <!--<div class="field">-->
-        <!--Required date: <input type="text" name="date2" required ui-date="" ng-model="reqDate">-->
-        <!--<div ng-if="myForm.date2.$error.required">-->
-          <!--The required date field is required.-->
-        <!--</div>-->
-      <!--</div>-->
-    </fieldset>
-
-
-    <h2>ui-date (binding options)</h2>
-    <fieldset>
-      <pre>{{myForm.smth2.$error | json}}</pre>
-      <pre>{{myForm.smth2.$modelValue | json}}</pre>
-      <label for="date1">Select Date:</label>
-      <!--<input type="text" name="smth2" id="date1" ui-date="dateOptions" ui-date-format="DD, d MM, yy" ng-model="aDate1">-->
-      <button ng-click="aDate1 = '2014-08-20T00:00:00-04:00'">Set 2014-08-20T00:00:00-04:00</button>
-      <button ng-click="aDate1 = ''">Set Empty</button>
-      <input type="text" name="smth2" id="date1" ui-date="dateOptions" ng-model="aDate1">
-
-      <div>{{ aDate1 }}</div>
+      <div>{{ aDate }}</div>
       <div>
-        <!--Read only <input type="text" ui-date ng-model="aDate1" readonly>-->
-        {{getDate(aDate1)}}
+        Read only <input type="text" ui-date="dateOptions" ng-model="aDate" readonly>
+      </div>
+
+
+      <div class="field">
+        Required date: <input type="text" name="date2" required ui-date ng-model="reqDate">
+        <div ng-if="myForm.date2.$error.required">
+          The required date field is required.
+        </div>
       </div>
     </fieldset>
+
+
+    <!--<h2>ui-date (binding options)</h2>-->
+    <!--<fieldset>-->
+      <!---->
+    <!--</fieldset>-->
 
 
   </form>
